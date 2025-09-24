@@ -121,13 +121,13 @@ for i, ref_img in enumerate(loader):
     x_samples_ddim = model.decode_first_stage(samples_ddim.detach())
 
     # Post-processing samples
-    label = clear_color(y_n)
+    #label = clear_color(y_n)
     reconstructed = clear_color(x_samples_ddim)
     true = clear_color(ref_img)
 
     # Saving images
     plt.imsave(os.path.join(out_path, 'input', fname+'_true.png'), true)
-    plt.imsave(os.path.join(out_path, 'label', fname+'_label.png'), label)
+    #plt.imsave(os.path.join(out_path, 'label', fname+'_label.png'), label)
     plt.imsave(os.path.join(out_path, 'recon', fname+'_recon.png'), reconstructed)
 
     psnr_cur = psnr(true, reconstructed)
