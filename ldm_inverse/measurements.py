@@ -13,6 +13,9 @@ from util.img_utils import Blurkernel, fft2_m
 
 #from torch_radon import Radon, solvers
 
+import torch
+import torchvision.models as tv_models
+from torch.nn import functional as F
 
 # =================
 # Operation classes
@@ -210,6 +213,47 @@ class NonlinearBlurOperator(NonLinearOperator):
         blurred = self.blur_model.adaptKernel(data, kernel=random_kernel)
         blurred = (blurred * 2.0 - 1.0).clamp(-1, 1) #[0, 1] -> [-1, 1]
         return blurred
+
+@register_operator(name='faceid_embedder')
+class FaceIDEmbedderOperator(NonLinearOperator):
+    """
+    Non-linear measurement operator that maps an input image to a fixed-length
+    face-identity embedding.  Uses a frozen ImageNet-pretrained CNN.
+    """
+    def __init__(self, device, model_name: str = "resnet50"):
+        self.device = device
+        # pick a backbone; fallback to resnet50
+        backbone_fn = {
+            "resnet18": tv_models.resnet18,
+            "resnet34": tv_models.resnet34,
+            "resnet50": tv_models.resnet50,
+            "resnet101": tv_models.resnet101,
+            "resnet152": tv_models.resnet152,
+        }.get(model_name, tv_models.resnet50)
+        net = backbone_fn(pretrained=True)
+        net.fc = torch.nn.Identity()  # expose feature vector
+        net.eval()
+        net.to(device)
+        self.embedder = net
+        # ImageNet mean/std buffers for normalisation
+        self.mean = torch.tensor([0.485, 0.456, 0.406], device=device).view(1, 3, 1, 1)
+        self.std = torch.tensor([0.229, 0.224, 0.225], device=device).view(1, 3, 1, 1)
+
+    def forward(self, data, **kwargs):
+        """
+        Args:
+            data: tensor of shape (B,3,H,W) with values in [-1,1].
+        Returns:
+            tensor of shape (B, embed_dim) – the face embedding.
+        """
+        # normalise from [-1,1] to [0,1]
+        x = (data + 1.0) / 2.0
+        # resize to 224×224
+        x = F.interpolate(x, size=(224, 224), mode="bilinear", align_corners=False)
+        # standardise with ImageNet statistics
+        x = (x - self.mean) / self.std
+        # run through the backbone (gradients propagate)
+        return self.embedder(x)
 
 # =============
 # Noise classes
