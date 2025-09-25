@@ -1,0 +1,17 @@
+conditioning:
+  main_sampler: resample
+  method: ps  # posterior-sampling gradient step
+  params:
+    scale: 0.2
+
+data:
+  name: celeb    # or your dataset name
+  root: ./data/samples/
+
+measurement:
+  operator:
+    name: arcface_embedder_facenet
+    pretrained: vggface2
+  noise:
+    name: gaussian
+    sigma: 0.0
