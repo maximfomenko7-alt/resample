@@ -255,6 +255,39 @@ class FaceIDEmbedderOperator(NonLinearOperator):
         # run through the backbone (gradients propagate)
         return self.embedder(x)
 
+@register_operator(name='arcface_embedder_facenet')
+class ArcFaceEmbedderOperatorFacenet(NonLinearOperator):
+    """
+    Non-linear measurement operator that maps an input image to a 512‑D
+    face‑identity embedding.  Uses a frozen face-recognition network
+    implemented in PyTorch, so gradients propagate back to the input.
+    """
+
+    def __init__(self, device, pretrained: str = 'vggface2'):
+        self.device = device
+        # Load a pretrained face-recognition network (512‑D output).
+        # The model is a torch.nn.Module, so it is differentiable.
+        net = InceptionResnetV1(pretrained=pretrained, classify=False)
+        net.eval()
+        net.to(device)
+        self.embedder = net
+
+    def forward(self, data, **kwargs):
+        """
+        Args:
+            data: tensor of shape (B, 3, H, W) with values in [-1, 1].
+        Returns:
+            tensor of shape (B, 512) – the face embedding (L2 normalised).
+        """
+        # normalise from [-1,1] to [0,1]
+        x = (data + 1.0) / 2.0
+        # resize to 160×160, the expected input size of InceptionResnetV1
+        x = F.interpolate(x, size=(160, 160), mode='bilinear', align_corners=False)
+        # run through the embedder (gradients propagate)
+        emb = self.embedder(x)
+        # normalise to unit length
+        return emb / emb.norm(dim=1, keepdim=True)
+
 # =============
 # Noise classes
 # =============
